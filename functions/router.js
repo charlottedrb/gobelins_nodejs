@@ -61,7 +61,8 @@ const movies = (db, admin) => {
         const category = db.collection("categories").doc(req.body.category)
         category.get().then(doc => {
             if (doc.exists) {
-                db.collection("movies").add({ ...body, img: encodeURI(req.body.img), video: encodeURI(req.body.video) }).then(res.status(201).send('Film ajouté !'))
+                db.collection("movies").add({ ...body, img: encodeURI(req.body.img), video: encodeURI(req.body.video) })
+                .then(res.status(201).send('Film ajouté !'))
             } else {
                 res.status(500).send("ID de la catégorie invalide")
             }
@@ -99,19 +100,23 @@ const categories = (db) => {
 
     categoriesRouter.route('/:id')
         .get(checkId, validatorError, (req, res) => {
-            db.collection("categories").doc(req.params.id).get().then(doc => res.status(200).send({ id: doc.id, ...doc.data() }))
+            db.collection("categories").doc(req.params.id).get()
+            .then(doc => res.status(200).send({ id: doc.id, ...doc.data() }))
         })
 
         .put(checkName, checkId, validatorError, (req, res) => {
-            db.collection("categories").doc(req.params.id).update(matchedData(req, { locations: ['body'] })).then(() => res.status(200).send('Catégorie mise à jour'))
+            db.collection("categories").doc(req.params.id).update(matchedData(req, { locations: ['body'] }))
+            .then(() => res.status(200).send('Catégorie mise à jour'))
         })
 
         .delete((req, res) => {
-            db.collection("categories").doc(req.params.id).delete().then(() => res.status(200).send('Catégorie supprimée !'))
+            db.collection("categories").doc(req.params.id).delete()
+            .then(() => res.status(200).send('Catégorie supprimée !'))
         });
 
     categoriesRouter.post('/add', checkName, validatorError, (req, res) => {
-        db.collection("categories").add(matchedData(req, { locations: ['body'] })).then(() => res.status(201).send('Catégorie ajoutée !'))
+        db.collection("categories").add(matchedData(req, { locations: ['body'] }))
+        .then(() => res.status(201).send('Catégorie ajoutée !'))
     });
 
     return categoriesRouter
