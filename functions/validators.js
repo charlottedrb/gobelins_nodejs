@@ -1,92 +1,96 @@
-const { body, validationResult, param, matchedData } = require('express-validator');
+const { body, validationResult, param } = require('express-validator');
 
 /**
  * Error Messages
  */
 
- const isStringError = (field) => `Champ ${field} : Vous n'avez pas rentré une chaîne de caractères. Merci de réessayer.`
- const isURLError = (field) => `Champ ${field} : Vous n'avez pas rentré une URL. Merci de réessayer.`
- const isLengthError = (field) => `Champ ${field} : Vous avez rentré trop de caractères.`
+const isStringError = (field) => `Champ ${field} : Vous n'avez pas rentré une chaîne de caractères. Merci de réessayer.`
+const isURLError = (field) => `Champ ${field} : Vous n'avez pas rentré une URL. Merci de réessayer.`
+const isLengthError = (field) => `Champ ${field} : Vous avez rentré trop de caractères.`
 
 /**
  * Validators
  */
 
-const addMovie = [
+const checkName = [
     body('name')
-        .exists().escape().notEmpty().trim()
+        .exists().notEmpty()
         .isString().withMessage(isStringError('name'))
-        .isLength({ max: 64 }).withMessage(isLengthError('name')),
-    body('author')
-        .exists().escape().notEmpty().trim()
-        .isString().withMessage(isStringError('author'))
-        .isLength({ max: 64 }).withMessage(isLengthError('author')),
-    body('img')
-        .exists().notEmpty().trim()
-        .isURL().withMessage(isURLError('img'))
-        .escape(),
-    body('video')
-        .exists().notEmpty().trim()
-        .isURL().withMessage(isURLError('video'))
-        .escape(),
-    body('category')
-        .exists().escape().notEmpty().trim()
-        .isString()
-        .isLength({ max: 20 }).withMessage(isLengthError('category')),
-    body('description')
-        .exists().escape().notEmpty().trim()
-        .isLength({ max: 1024 }).withMessage(isLengthError('description')),
-    (req, res, next) => {
-        // validationResult : renvoie les erreurs
-        const result = validationResult(req);
-        console.log(result);
-        if (!result.isEmpty()) {
-            return res.status(500).json({
-                title: 'Une erreur s\'est produite. ',
-                error: result.errors
-            });
-        }
-        next()
-    }
+        .isLength({ max: 64 }).withMessage(isLengthError('name'))
+        .trim().escape()
 ]
 
-const movieId = [
-    param('movieId')
-        .exists().escape().notEmpty()
-        .isLength({ max: 20 }).withMessage('L\'ID renseigné n\'est pas correct'),
-    (req, res, next) => {
-        const result = validationResult(req);
-        console.log(result);
-        if (!result.isEmpty()) {
-            return res.status(500).json({
-                title: 'Une erreur s\'est produite. ',
-                error: result.array()
-            });
-        }
+const checkId = [
+    param('id')
+        .exists().notEmpty()
+        .isLength({ min: 20, max: 20 }).withMessage('L\'ID renseigné n\'est pas correct')
+        .escape(),
+]
 
-        next()
-    }
+const addMovie = [
+    ...checkName,
+    body('author')
+        .exists().notEmpty()
+        .isString().withMessage(isStringError('author'))
+        .isLength({ max: 64 }).withMessage(isLengthError('author'))
+        .trim().escape(),
+    body('img')
+        .exists().notEmpty()
+        .isURL().withMessage(isURLError('img'))
+        .trim(),
+    body('video')
+        .exists().notEmpty()
+        .isURL().withMessage(isURLError('video'))
+        .trim(),
+    body('category')
+        .exists().notEmpty()
+        .isString()
+        .isLength({ max: 20 }).withMessage(isLengthError('category'))
+        .trim().escape(),
+    body('description')
+        .exists().notEmpty()
+        .isLength({ max: 1024 }).withMessage(isLengthError('description'))
+        .trim().escape(),
+    body('likes')
+        .default(0)
 ]
 
 const editMovie = [
-    param('movieId')
-        .exists().escape().notEmpty()
-        .isLength({ max: 20 }).withMessage('L\'ID renseigné n\'est pas correct'),
-    (req, res, next) => {
-        const result = validationResult(req);
-        console.log(result);
-        if (!result.isEmpty()) {
-            return res.status(500).json({
-                title: 'Une erreur s\'est produite. ',
-                error: result.array()
-            });
-        }
-
-        next()
-    }
+    body('name')
+        .isString().withMessage(isStringError('name'))
+        .isLength({ max: 64 }).withMessage(isLengthError('name'))
+        .optional().escape().notEmpty().trim(),
+    body('author')
+        .isString().withMessage(isStringError('author'))
+        .isLength({ max: 64 }).withMessage(isLengthError('author'))
+        .optional().escape().notEmpty().trim(),
+    body('img')
+        .isURL().withMessage(isURLError('img'))
+        .optional().notEmpty().trim(),
+    body('video')
+        .isURL().withMessage(isURLError('video'))
+        .optional().notEmpty().trim(),
+    body('category')
+        .isString()
+        .isLength({ min: 20, max: 20 }).withMessage(isLengthError('category'))
+        .optional().escape().notEmpty().trim()
+    ,
+    body('description')
+        .isLength({ max: 1024 }).withMessage(isLengthError('description'))
+        .optional().escape().trim(),
 ]
 
-module.exports.addMovie = addMovie
-module.exports.movieId = movieId
-module.exports.editMovie = editMovie
+function validatorError(req, res, next) {
+    const result = validationResult(req);
+    if (!result.isEmpty()) {
+        return res.status(500).json({
+            title: 'Une erreur s\'est produite. ',
+            error: result.array()
+        });
+    }
+
+    next()
+}
+
+module.exports = { addMovie, checkId, editMovie, checkName, validatorError }
 

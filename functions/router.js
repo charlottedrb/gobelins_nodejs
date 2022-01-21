@@ -1,76 +1,125 @@
 const express = require('express');
+const { matchedData } = require('express-validator');
 
 /**
  * Routers
  */
-
-const router = express.Router();
 const moviesRouter = express.Router();
+const categoriesRouter = express.Router();
 
 /**
  * Validators Imports
  */
 
-const validators = require('./validators')
+const { addMovie, checkId, editMovie, checkName, validatorError } = require('./validators')
 
 /**
  * Movies Routes
  */
-const movies = (db) => {
-    moviesRouter.get('/', function (req, res, next) {
-        db.collection("movies").get().then(qs => {
+const movies = (db, admin) => {
+    moviesRouter.get('/', (req, res) => {
+        db.collection("movies").get().then(doc => {
             let all = []
-            qs.forEach(doc => all.push({
-                id: doc.id,
-                name: doc.data().name,
-                author: doc.data().author,
-                img: doc.data().img,
-                video: doc.data().video,
-                category: doc.data().category,
-                description: doc.data().description
-            }))
+            doc.forEach(doc => all.push({ id: doc.id, ...doc.data() }))
             res.send(all)
         })
     });
 
-    moviesRouter.get('/:movieId', validators.movieId, (req, res) => {
-        db.collection("movies").doc(req.params.movieId).get().then(qs => res.send(qs.data()))
-    });
-
-    moviesRouter.post('/add', validators.addMovie , (req, res) => {
-        db.collection("movies").add({
-            name: req.body.name,
-            author: req.body.author,
-            img: decodeURI(req.body.img),
-            video: decodeURI(req.body.video),
-            category: req.body.category,
-            description: req.body.description,
-            likes: 0    
-        }).then(res.send('Film ajouté !'))
-    });
-
-    moviesRouter.patch('/:movieId', validators.editMovie, (req, res) => {
-        db.collection("movies").doc(req.params.movieId).set({
-            
+    moviesRouter.route('/:id')
+        .get(checkId, validatorError, (req, res) => {
+            db.collection("movies").doc(req.params.id).get().then(doc => {
+                if (doc.exists) {
+                    res.status(200).send({ id: doc.id, ...doc.data() })
+                } else {
+                    res.status(500).send("ID invalide")
+                }
+            })
+                .catch(error => res.status(500).send('Erreur : ' + error))
         })
-    })
 
-    moviesRouter.delete('/:movieId', validators.movieId, (req, res) => {
-        db.collection("movies").doc(req.params.movieId).delete().then(res.send('Film supprimé !'))
-    })
+        .patch([editMovie, ...checkId], validatorError, (req, res) => {
+            const ref = db.collection("movies").doc(req.params.id)
+            ref.get().then(doc => {
+                if (doc.exists) {
+                    const body = matchedData(req, { locations: ['body'] })
+                    ref.update({ ...body, img: encodeURI(req.body.img), video: encodeURI(req.body.video) })
+                        .then(res.status(200).send('Film mis à jour'))
+                        .catch(error => res.status(500).send(error.json()))
+                } else {
+                    res.status(500).send("ID invalide")
+                }
+            })
+                .catch(error => res.status(500).send('Erreur : ' + error))
+        })
 
-    // moviesRouter.patch('/v1/movie/:name/add_like', function (req, res, next) {
-    //     const movieByName = db.collection("movies").where('name', '==', req.params.name).get()
-    //     db.collection("movies").get().then(qs => { 
-    //         let all = []
-    //         qs.forEach(doc => all.push(doc.data()))
-    //         res.send(all)
-    //     })
-    // });
+        .delete(checkId, validatorError, (req, res) => {
+            db.collection("movies").doc(req.params.id).delete().then(doc => checkId(doc, res, 'Film supprimé'))
+        });
+
+    moviesRouter.post('/add', addMovie, validatorError, (req, res) => {
+        const body = matchedData(req, { locations: ['body'] })
+        const category = db.collection("categories").doc(req.body.category)
+        category.get().then(doc => {
+            if (doc.exists) {
+                db.collection("movies").add({ ...body, img: encodeURI(req.body.img), video: encodeURI(req.body.video) }).then(res.status(201).send('Film ajouté !'))
+            } else {
+                res.status(500).send("ID de la catégorie invalide")
+            }
+        })
+    });
+
+    moviesRouter.patch('/:id/like', checkId, validatorError, (req, res) => {
+        const ref = db.collection("movies").doc(req.params.id)
+        ref.get().then(doc => {
+            if (doc.exists) {
+                ref.update({ likes: admin.firestore.FieldValue.increment(1) })
+                    .then(res.status(200).send('Liké !'))
+                    .catch(error => res.status(500).send(error.json()))
+            } else {
+                res.status(500).send("ID invalide")
+            }
+        })
+            .catch(error => res.status(500).send('Erreur : ' + error))
+    })
 
     return moviesRouter
 }
 
+/**
+ * Categories Routes
+ */
+const categories = (db) => {
+    categoriesRouter.get('/', (req, res) => {
+        db.collection("categories").get().then(doc => {
+            let all = []
+            doc.forEach(doc => all.push({ id: doc.id, ...doc.data() }))
+            res.status(200).send(all)
+        })
+    })
 
+    categoriesRouter.route('/:id')
+        .get(checkId, validatorError, (req, res) => {
+            db.collection("categories").doc(req.params.id).get().then(doc => res.status(200).send({ id: doc.id, ...doc.data() }))
+        })
 
-module.exports.moviesRouter = (db) => movies(db)
+        .put(checkName, checkId, validatorError, (req, res) => {
+            db.collection("categories").doc(req.params.id).update(matchedData(req, { locations: ['body'] })).then(() => res.status(200).send('Catégorie mise à jour'))
+        })
+
+        .delete((req, res) => {
+            db.collection("categories").doc(req.params.id).delete().then(() => res.status(200).send('Catégorie supprimée !'))
+        });
+
+    categoriesRouter.post('/add', checkName, validatorError, (req, res) => {
+        db.collection("categories").add(matchedData(req, { locations: ['body'] })).then(() => res.status(201).send('Catégorie ajoutée !'))
+    });
+
+    return categoriesRouter
+}
+
+/** 
+ * Functions
+ */
+
+module.exports.moviesRouter = (db, admin) => movies(db, admin)
+module.exports.categoriesRouter = (db) => categories(db)
